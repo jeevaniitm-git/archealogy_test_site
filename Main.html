@@ -1,0 +1,267 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Virtual Archaeology Explorer (Offline: 2D + CSS 3D + Dinosaur Bones)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f4f1e9;
+    --panel-bg: #e8dcc6;
+    --brand: #8b6f47;
+    --brand-dark: #6e5435;
+    --stroke: #5a4636;
+  }
+  body { font-family: system-ui, sans-serif; margin: 16px; background: var(--bg); }
+  h1 { color: var(--stroke); margin: 0 0 8px; }
+  p  { margin: 4px 0 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  button {
+    padding: 10px 14px; background: var(--brand); color: #fff; border: none;
+    cursor: pointer; border-radius: 4px;
+  }
+  button:hover { background: var(--brand-dark); }
+  #status { margin-top: 10px; font-style: italic; color: #444; min-height: 1em; }
+
+  /* Panels: 2D + 3D + Bones side by side (responsive) */
+  .panels {
+    display: grid;
+    grid-template-columns: repeat(3, 320px);
+    gap: 12px;
+  }
+  .panel {
+    width: 320px; height: 240px; border: 1px solid #ccc; background: var(--panel-bg);
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .panel > canvas, .panel > svg { width: 100%; height: 100%; display: block; }
+  .label {
+    position: absolute; top: 6px; left: 8px; font-size: 12px; color: #333; background: #fff8;
+    padding: 2px 6px; border-radius: 3px; border: 1px solid #ddd;
+  }
+  @media (max-width: 1024px) { .panels { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px)  { .panels { grid-template-columns: 1fr; } }
+
+  /* CSS 3D artifact (stacked rings) */
+  .artifact {
+    width: 100px; height: 200px; position: relative; transform-style: preserve-3d;
+    animation: spin 6s linear infinite;
+  }
+  .ring {
+    position: absolute; left: 0; right: 0; margin: auto; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #d4b98a, var(--brand));
+    opacity: 0.96;
+  }
+  @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+
+  .note { font-size: 12px; color: #555; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>Virtual Archaeology Explorer</h1>
+<p>Offline demo: simulate GPR processing, show a 2D artifact silhouette, a CSS‑based rotating 3D artifact, and an inline SVG of dinosaur bones—side by side.</p>
+
+<div class="controls">
+  <button id="processGPR">Process GPR Data</button>
+  <button id="show2D">Show 2D Artifact</button>
+  <button id="show3D">Show 3D Artifact</button>
+  <button id="showBoth">Show Both (2D + 3D)</button>
+  <button id="showBones">Show Dinosaur Bones</button>
+  <button id="clear">Clear</button>
+</div>
+
+<div class="panels">
+  <!-- 2D panel -->
+  <div class="panel" id="panel2d">
+    <span class="label">2D Artifact (Canvas)</span>
+    <canvas id="canvas2d" width="320" height="240" aria-label="2D artifact silhouette"></canvas>
+  </div>
+
+  <!-- 3D panel -->
+  <div class="panel" id="panel3d" aria-label="CSS-based rotating 3D artifact">
+    <span class="label">3D Artifact (CSS)</span>
+    <div id="artifactContainer"></div>
+  </div>
+
+  <!-- Dinosaur bones panel -->
+  <div class="panel" id="panelBones" aria-label="Dinosaur bones illustration">
+    <span class="label">Dinosaur Bones (Inline SVG)</span>
+    <!-- SVG inserted by JS -->
+    <div id="bonesContainer"></div>
+  </div>
+</div>
+
+<div id="status" aria-live="polite"></div>
+<div class="note">No WebGL or internet required. If rotation looks flat, your browser/device may limit 3D transforms—still works offline.</div>
+
+<script>
+/* ---------- Status helper ---------- */
+const statusEl = document.getElementById('status');
+function setStatus(msg){ statusEl.textContent = msg || ''; }
+
+/* ---------- 2D Canvas: pottery-like artifact ---------- */
+const cv = document.getElementById('canvas2d');
+const ctx = cv.getContext('2d');
+
+function clear2D(){ ctx.clearRect(0, 0, cv.width, cv.height); }
+
+function draw2DArtifact(){
+  clear2D();
+  setStatus('Displaying 2D artifact silhouette.');
+  // Soil background
+  const grad = ctx.createLinearGradient(0, 0, 0, cv.height);
+  grad.addColorStop(0, '#f7f3e8'); grad.addColorStop(1, '#e8dcc6');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // Body with shading
+  ctx.beginPath();
+  ctx.moveTo(160, 30);
+  ctx.bezierCurveTo(110, 60, 95, 110, 110, 150);
+  ctx.bezierCurveTo(120, 190, 140, 210, 160, 210);
+  ctx.bezierCurveTo(180, 210, 200, 190, 210, 150);
+  ctx.bezierCurveTo(225, 110, 210, 60, 160, 30);
+  ctx.closePath();
+  const bodyGrad = ctx.createRadialGradient(160,120,30,160,120,90);
+  bodyGrad.addColorStop(0,'#d4b98a'); bodyGrad.addColorStop(1,'#8b6f47');
+  ctx.fillStyle = bodyGrad; ctx.fill();
+  ctx.strokeStyle = '#5a4636'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Bands
+  ctx.strokeStyle = '#7a5f3e'; ctx.lineWidth = 1.5;
+  [70,100,130,160,180].forEach(y => {
+    ctx.beginPath(); ctx.moveTo(120,y); ctx.quadraticCurveTo(160,y-6,200,y); ctx.stroke();
+  });
+}
+
+/* ---------- CSS 3D Artifact (stacked rings) ---------- */
+const artifactContainer = document.getElementById('artifactContainer');
+
+function clear3D(){ artifactContainer.innerHTML = ''; }
+
+function show3DArtifact(){
+  clear3D();
+  setStatus('Displaying rotating 3D-like artifact (CSS).');
+  const artifact = document.createElement('div');
+  artifact.className = 'artifact';
+
+  const ringCount = 20;
+  for (let i=0;i<ringCount;i++){
+    const ring = document.createElement('div');
+    ring.className = 'ring';
+    const scale = 1 - Math.abs(i - ringCount/2)/(ringCount/2); // wider in the middle
+    ring.style.width  = (100 + scale*40) + 'px';
+    ring.style.height = (100 + scale*40) + 'px';
+    ring.style.transform = `translateZ(${(i - ringCount/2)*5}px)`;
+    artifact.appendChild(ring);
+  }
+  artifactContainer.appendChild(artifact);
+}
+
+/* ---------- Dinosaur bones: inline SVG (stylized skeleton) ---------- */
+const bonesContainer = document.getElementById('bonesContainer');
+
+function clearBones(){ bonesContainer.innerHTML = ''; }
+
+function showBones(){
+  clearBones();
+  setStatus('Displaying dinosaur bones (inline SVG).');
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox','0 0 320 240'); svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Stylized dinosaur skeleton');
+  svg.style.width = '100%'; svg.style.height = '100%';
+
+  // Background
+  const bg = document.createElementNS(svgNS,'rect');
+  bg.setAttribute('x','0'); bg.setAttribute('y','0');
+  bg.setAttribute('width','320'); bg.setAttribute('height','240');
+  bg.setAttribute('fill','#f7f3e8');
+  svg.appendChild(bg);
+
+  // Spine (series of small rounded bones)
+  for(let i=0;i<14;i++){
+    const v = document.createElementNS(svgNS,'rect');
+    v.setAttribute('x', 70 + i*12); v.setAttribute('y', 110 + (i%2?2:-2));
+    v.setAttribute('width','10'); v.setAttribute('height','6');
+    v.setAttribute('rx','3'); v.setAttribute('fill','#e0d5be'); v.setAttribute('stroke','#5a4636'); v.setAttribute('stroke-width','1');
+    svg.appendChild(v);
+  }
+
+  // Ribs (curved paths from spine)
+  const ribs = [0,1,2,3,4,5,6,7,8,9];
+  ribs.forEach(idx => {
+    const y = 112 + (idx-5)*5;
+    const path = document.createElementNS(svgNS,'path');
+    path.setAttribute('d', `M ${85 + idx*12} ${y} C ${90 + idx*12} ${y-10}, ${110 + idx*12} ${y-15}, ${130 + idx*12} ${y}`);
+    path.setAttribute('fill','none'); path.setAttribute('stroke','#5a4636'); path.setAttribute('stroke-width','1.5');
+    svg.appendChild(path);
+  });
+
+  // Skull (circle + jaw + simple teeth)
+  const skull = document.createElementNS(svgNS,'circle');
+  skull.setAttribute('cx','60'); skull.setAttribute('cy','110'); skull.setAttribute('r','20');
+  skull.setAttribute('fill','#e0d5be'); skull.setAttribute('stroke','#5a4636'); skull.setAttribute('stroke-width','2');
+  svg.appendChild(skull);
+
+  const jaw = document.createElementNS(svgNS,'path');
+  jaw.setAttribute('d','M 48 118 Q 60 130 72 118');
+  jaw.setAttribute('fill','none'); jaw.setAttribute('stroke','#5a4636'); jaw.setAttribute('stroke-width','2');
+  svg.appendChild(jaw);
+
+  // Teeth
+  for(let t=0;t<5;t++){
+    const tooth = document.createElementNS(svgNS,'polygon');
+    tooth.setAttribute('points', `${54+t*5},118 ${56+t*5},122 ${58+t*5},118`);
+    tooth.setAttribute('fill','#e0d5be'); tooth.setAttribute('stroke','#5a4636'); tooth.setAttribute('stroke-width','1');
+    svg.appendChild(tooth);
+  }
+
+  // Tail bones
+  for(let i=0;i<8;i++){
+    const tb = document.createElementNS(svgNS,'rect');
+    tb.setAttribute('x', 230 + i*10); tb.setAttribute('y', 120 + i*2);
+    tb.setAttribute('width','8'); tb.setAttribute('height','5'); tb.setAttribute('rx','2');
+    tb.setAttribute('fill','#e0d5be'); tb.setAttribute('stroke','#5a4636'); tb.setAttribute('stroke-width','1');
+    svg.appendChild(tb);
+  }
+
+  // Hind leg (simplified)
+  const femur = document.createElementNS(svgNS,'rect');
+  femur.setAttribute('x','200'); femur.setAttribute('y','140'); femur.setAttribute('width','14'); femur.setAttribute('height','6'); femur.setAttribute('rx','3');
+  femur.setAttribute('fill','#e0d5be'); femur.setAttribute('stroke','#5a4636'); femur.setAttribute('stroke-width','1');
+  svg.appendChild(femur);
+
+  const tibia = document.createElementNS(svgNS,'rect');
+  tibia.setAttribute('x','212'); tibia.setAttribute('y','150'); tibia.setAttribute('width','12'); tibia.setAttribute('height','6'); tibia.setAttribute('rx','3');
+  tibia.setAttribute('fill','#e0d5be'); tibia.setAttribute('stroke','#5a4636'); tibia.setAttribute('stroke-width','1');
+  svg.appendChild(tibia);
+
+  bonesContainer.appendChild(svg);
+}
+
+/* ---------- GPR simulation & buttons ---------- */
+function processGPR(){
+  clearAll();
+  setStatus('Processing GPR data...');
+  let dots=0;
+  const id=setInterval(()=>{ dots=(dots+1)%4; setStatus('Processing GPR data'+'.'.repeat(dots)); },300);
+  setTimeout(()=>{ clearInterval(id); setStatus('GPR data processed. Ready to visualize.'); },2000);
+}
+
+function showBoth(){ draw2DArtifact(); show3DArtifact(); setStatus('Showing 2D and 3D side by side.'); }
+function clearAll(){ clear2D(); clear3D(); clearBones(); setStatus(''); }
+
+document.getElementById('processGPR').addEventListener('click', processGPR);
+document.getElementById('show2D').addEventListener('click', draw2DArtifact);
+document.getElementById('show3D').addEventListener('click', show3DArtifact);
+document.getElementById('showBoth').addEventListener('click', showBoth);
+document.getElementById('showBones').addEventListener('click', showBones);
+document.getElementById('clear').addEventListener('click', clearAll);
+
+/* Optional: preload visuals */
+draw2DArtifact();
+show3DArtifact();
+showBones();
+</script>
+</body>
+</html>
